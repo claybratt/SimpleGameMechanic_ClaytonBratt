@@ -34,7 +34,9 @@ public class RaycastLaser : MonoBehaviour
     {
         if (Input.GetMouseButton(0)) // Holding down the left mouse button
         {
-            CastRay();
+            lineRenderer.enabled = true;
+            lineRenderer.positionCount = 1; // Reset ray path
+            CastLaserRay(transform.position + Vector3.down * 0.5f, transform.forward, maxRayDistance);
         }
         else
         {
@@ -42,23 +44,22 @@ public class RaycastLaser : MonoBehaviour
         }
     }
 
-    void CastRay()
+    void CastLaserRay(Vector3 rayOrigin, Vector3 rayDirection, float rayDistance)
     {
-        Vector3 rayOrigin = transform.position + Vector3.down * 0.5f; // Move ray down by 0.5 units
-        Ray laserRay = new Ray(rayOrigin, transform.forward);
+        Ray laserRay = new Ray(rayOrigin, rayDirection);
         RaycastHit enterHit;
 
-        lineRenderer.enabled = true;
-        lineRenderer.positionCount = 1; // Reset ray path
-        lineRenderer.SetPosition(0, rayOrigin); // Start at player
+        int linePosition = lineRenderer.positionCount - 1;
+        //int linePosition = 0;
+        lineRenderer.SetPosition(linePosition, rayOrigin); // Start at player
 
-        if (Physics.Raycast(laserRay, out enterHit, maxRayDistance))
+        if (Physics.Raycast(laserRay, out enterHit, rayDistance))
         {
             //Debug.Log("Hit 1: " + enterHit.collider.name);
-            //Debug.DrawRay(rayOrigin, transform.forward * enterHit.distance, Color.red, debugLaserTime);
+            //Debug.DrawRay(rayOrigin, rayDirection * enterHit.distance, Color.red, debugLaserTime);
 
-            lineRenderer.positionCount = 2;
-            lineRenderer.SetPosition(1, enterHit.point); // Show the first segment
+            lineRenderer.positionCount = linePosition + 2;
+            lineRenderer.SetPosition(linePosition + 1, enterHit.point); // Show the first segment
 
             RefractiveObject refractiveObj = enterHit.collider.GetComponent<RefractiveObject>(); // Check if the object hit is refractive
             if (refractiveObj != null)
@@ -71,17 +72,17 @@ public class RaycastLaser : MonoBehaviour
                 if (Refract(laserRay.direction, enterHit.normal, enviornmentIOR, objectIOR, out refractedInDir))
                 {
                     //Debug.DrawRay(enterHit.point, refractedInDir * 5, Color.blue, debugLaserTime);
-                    //Debug.DrawRay(enterHit.point + refractedInDir * 5, -refractedInDir * 5, Color.blue, debugLaserTime);
+                    //Debug.DrawRay(enterHit.point + refractedInDir * rayDistance, -refractedInDir * rayDistance, Color.blue, debugLaserTime);
 
-                    Ray insideRay = new Ray(enterHit.point + refractedInDir * 5, -refractedInDir * 5);
+                    Ray insideRay = new Ray(enterHit.point + refractedInDir * rayDistance, -refractedInDir * rayDistance);
 
                     RaycastHit exitHit;
 
-                    if (enterHit.collider.Raycast(insideRay, out exitHit, maxRayDistance))
+                    if (enterHit.collider.Raycast(insideRay, out exitHit, rayDistance))
                     {
                         //Debug.Log("Hit 2: " + exitHit.collider.name);
-                        lineRenderer.positionCount = 3;
-                        lineRenderer.SetPosition(2, exitHit.point); // Add second segment (inside object)
+                        lineRenderer.positionCount = linePosition + 3;
+                        lineRenderer.SetPosition(linePosition + 2, exitHit.point); // Add second segment (inside object)
 
                         // Compute refracted ray exiting the object
                         Vector3 refractedOutDir;
@@ -91,16 +92,21 @@ public class RaycastLaser : MonoBehaviour
 
                         if (Refract(refractedInDir, exitNormal, objectIOR, enviornmentIOR, out refractedOutDir))
                         {
-                            //Debug.DrawRay(exitHit.point, refractedOutDir * maxRayDistance, Color.green, debugLaserTime);
+                            //Debug.DrawRay(exitHit.point, refractedOutDir * rayDistance, Color.green, debugLaserTime);
 
-                            lineRenderer.positionCount = 4;
-                            lineRenderer.SetPosition(3, exitHit.point + refractedOutDir * maxRayDistance); // Final outgoing ray
-                        }else
+                            lineRenderer.positionCount = linePosition + 4;
+                            lineRenderer.SetPosition(linePosition + 3, exitHit.point + refractedOutDir * rayDistance); // Final outgoing ray
+
+                            CastLaserRay(exitHit.point, refractedOutDir, maxRayDistance);
+                        }
+                        else
                         {
-                            //Debug.DrawRay(exitHit.point, refractedInDir * maxRayDistance, Color.green, debugLaserTime);
+                            //Debug.DrawRay(exitHit.point, refractedInDir * rayDistance, Color.green, debugLaserTime);
 
-                            lineRenderer.positionCount = 4;
-                            lineRenderer.SetPosition(3, exitHit.point + refractedInDir * maxRayDistance); // Final outgoing ray;
+                            lineRenderer.positionCount = linePosition + 4;
+                            lineRenderer.SetPosition(linePosition + 3, exitHit.point + refractedInDir * rayDistance); // Final outgoing ray;
+
+                            CastLaserRay(exitHit.point, refractedInDir, maxRayDistance);
                         }
                     }
                 }
@@ -109,22 +115,25 @@ public class RaycastLaser : MonoBehaviour
             if (reflectiveeObj != null)
             {
                 Vector3 reflectedDir = Vector3.Reflect(laserRay.direction, enterHit.normal);
-                Ray reflectedRay = new Ray(enterHit.point + enterHit.normal * 0.1f, reflectedDir);
+                Ray reflectedRay = new Ray(enterHit.point + enterHit.normal * 0.01f, reflectedDir);
                 RaycastHit reflectedHit;
-                if (Physics.Raycast(reflectedRay, out reflectedHit, maxRayDistance))
+                if (Physics.Raycast(reflectedRay, out reflectedHit, rayDistance))
                 {
-                    Debug.Log("Hit 2: " + enterHit.collider.name);
-                    Debug.DrawRay(reflectedRay.origin, reflectedRay.direction * 1f, Color.blue, debugLaserTime);
-                    lineRenderer.positionCount = 3;
-                    lineRenderer.SetPosition(2, reflectedHit.point); // Add second segment (reflected ray)
+                    //Debug.Log("Hit 2: " + enterHit.collider.name);
+                    //Debug.DrawRay(reflectedRay.origin, reflectedRay.direction * rayDistance, Color.magenta, debugLaserTime);
+
+                    lineRenderer.positionCount = linePosition + 3;
+                    lineRenderer.SetPosition(linePosition + 2, reflectedHit.point); // Add second segment (reflected ray)
+
+                    CastLaserRay(reflectedRay.origin, reflectedRay.direction, maxRayDistance);
                 }
             }
         }
         else
         {
-            //Debug.DrawRay(rayOrigin, transform.forward * maxRayDistance, Color.red, debugLaserTime);
-            lineRenderer.positionCount = 2;
-            lineRenderer.SetPosition(1, rayOrigin + laserRay.direction * maxRayDistance); // Show the full ray
+            //Debug.DrawRay(rayOrigin, rayDirection * rayDistance, Color.red, debugLaserTime);
+            lineRenderer.positionCount = linePosition + 2;
+            lineRenderer.SetPosition(linePosition + 1, rayOrigin + laserRay.direction * rayDistance); // Show the full ray
         }
     }
 

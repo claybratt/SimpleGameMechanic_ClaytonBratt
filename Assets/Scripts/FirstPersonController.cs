@@ -46,7 +46,7 @@ public class FirstPersonController : MonoBehaviour
         moveDirection.Normalize();
 
         float speed = WalkSpeed;
-        if (Input.GetKey(KeyCode.LeftShift))
+        if (Input.GetKey(KeyCode.LeftShift) && IsGrounded())
         {
             speed *= SprintMultiplier;
         }
